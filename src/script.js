@@ -1,12 +1,12 @@
 import {CounterAPI} from "counterapi";
-
+console.log("dafdafd");
 const counter = new CounterAPI();
 const apiBaseURL = 'https://api.openf1.org/v1';
 // const apiBaseURL = 'http://127.0.0.1:8000/v1';
 let driverMap = new Map();
 let controller = new AbortController();
-let conList = ['McLaren', 'Mercedes', 'Ferrari', 'Red Bull Racing', 'Williams', 'Aston Martin', 'Kick Sauber', 'Racing Bulls', 'Haas F1 Team', 'Alpine', 'null', null];
-let curYear = 2025;
+let conList = ['McLaren', 'Mercedes', 'Ferrari', 'Red Bull Racing', 'Williams', 'Aston Martin', 'Audi', 'Racing Bulls', 'Haas F1 Team', 'Alpine', 'Cadillac', 'null', null];
+let curYear = 2026;
 let toggleLabel = document.getElementById('toggleLabel');
 let orderby = "Median";
 const exportdiv = document.getElementById('export');
@@ -76,7 +76,7 @@ function createDriverList(data){
     driverList.innerHTML = '';
     
     let array = [...data];
-    if(curYear==2025){
+    if(curYear==2026){
         array.sort((a, b)=>{
             return conList.indexOf(a.team_name) - conList.indexOf(b.team_name);
         });

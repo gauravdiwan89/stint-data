@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", function () {
     
     // Add year options
     const yearList = document.getElementById("year-list");
-    [2025, 2024, 2023].forEach(year => {
+    [2026, 2025, 2024, 2023].forEach(year => {
         const li = document.createElement("li");
         li.textContent = year;
         yearList.appendChild(li);

@@ -1,11 +1,11 @@
 import {CounterAPI} from "counterapi";
-console.log("dafdafd");
+import { apiRequest } from "./apicall"; "./apicall.js"
 const counter = new CounterAPI();
 const apiBaseURL = 'https://api.openf1.org/v1';
 // const apiBaseURL = 'http://127.0.0.1:8000/v1';
 let driverMap = new Map();
 let controller = new AbortController();
-let conList = ['McLaren', 'Mercedes', 'Ferrari', 'Red Bull Racing', 'Williams', 'Aston Martin', 'Audi', 'Racing Bulls', 'Haas F1 Team', 'Alpine', 'Cadillac', 'null', null];
+let conList = ['Mercedes', 'Ferrari', 'McLaren', 'Haas F1 Team', 'Alpine', 'Red Bull Racing', 'Racing Bulls',  'Audi', 'Williams', 'Cadillac', 'Aston Martin', 'null', null];
 let curYear = 2026;
 let toggleLabel = document.getElementById('toggleLabel');
 let orderby = "Median";
@@ -17,11 +17,6 @@ const barDiv = document.getElementById('barPlot');
 const lineDiv = document.getElementById('linePlot'); 
 const loadingScreen = document.getElementById('loading-screen');
 const counterDiv = document.getElementById('count');
-
-// please don't break it.
-// counter.up("rakesh-i.github.io", "stint-data").then((res) => {
-//     counterDiv.textContent = res.Count;
-// })
 
 // Interactions
 function selectYear(event) {
@@ -117,27 +112,60 @@ function createSessionList(data){
     }
     showDriverSearch(listSession[n-1].value);
 }
-
-function createRacelist(data){
+  
+function createRacelist(data) {
     const raceList = document.querySelector('#race-list');
     raceList.innerHTML = '';
-    data.forEach(x=>{
+
+    data.forEach(x => {
         const race = document.createElement('li');
         race.value = x.country_name;
         race.textContent = x.country_name;
+
+        race.dataset.date_start = x.date_start;
+        race.dataset.date_end = x.date_end;
+
         raceList.appendChild(race);
     });
 
     const listRaces = document.querySelectorAll('.race-container li');
-    
-    listRaces.forEach(item=>{
+
+    listRaces.forEach(item => {
         item.addEventListener('click', selectRace);
-    })
-    let n = listRaces.length;
-    listRaces[n-1].classList.add('choose');
-    listRaces[n-1].scrollIntoView({ behavior: 'smooth', block: 'start' });
-    fetchSessions(listRaces[n-1].textContent);
-}   
+    });
+
+    const now = new Date();
+
+    let inProgressRace = null;
+    let latestEndedRace = null;
+
+    listRaces.forEach(item => {
+        const start = new Date(item.dataset.date_start);
+        const end = new Date(item.dataset.date_end);
+
+        if (start <= now && now <= end) {
+            inProgressRace = item;
+        }
+
+        if (end < now) {
+            if (!latestEndedRace || end > new Date(latestEndedRace.dataset.date_end)) {
+                latestEndedRace = item;
+            }
+        }
+    });
+
+    let selectedRace = inProgressRace || latestEndedRace;
+
+    if (selectedRace) {
+        selectedRace.classList.add('choose');
+        selectedRace.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        fetchSessions(selectedRace.textContent);
+    } 
+    else if (listRaces.length > 0) {
+        listRaces[0].classList.add('choose');
+        fetchSessions(listRaces[0].textContent);
+    }
+}
 
 function createYearlist(){
     const listYears = document.querySelectorAll('.year-container li');
@@ -154,29 +182,10 @@ function createYearlist(){
 // API calls and gathering data
 async function fetchMeetings(year){
     try {
-        let meetings = await fetch(`${apiBaseURL}/meetings?year=${year}`);
-
-        if(!meetings.ok){
-            if (!meetings.status === 500) {
-                alert("🚨 Server Error (500). Please try again later.");
-            } else if (meetings.status === 429) {
-                alert("⚠️ Too many requests (429). Please wait and try again.");
-            } else {
-                alert(`❌ Error ${meetings.status}: ${meetings.statusText}`);
-            }
-            return null;
-        }
-        let data = await meetings.json();
+        let data = await apiRequest(`${apiBaseURL}/meetings?year=${year}`);
         createRacelist(data);
     }
     catch (error) {
-        if (error.name === "AbortError") {
-            console.log("Request was aborted.");
-        } else if (error instanceof TypeError && error.message === "Failed to fetch") {
-            alert("Failed to reach server.");
-        } else {
-            alert(`❗ Unexpected error: ${error.message}`);
-        }
         console.log(error);
         return null;
     }
@@ -190,28 +199,10 @@ async function fetchSessions(country) {;
             alert('Please select l_name country.');
             return;
         }
-        let session = await fetch(`${apiBaseURL}/sessions?country_name=${country}&year=${year}`);
-        if(!session.ok){
-            if (!session.status === 500) {
-                alert("🚨 Server Error (500). Please try again later.");
-            } else if (session.status === 429) {
-                alert("⚠️ Too many requests (429). Please wait and try again.");
-            } else {
-                alert(`❌ Error ${session.status}: ${session.statusText}`);
-            }
-            return null;
-        }
-        let data = await session.json();
-
+        let data = await apiRequest(`${apiBaseURL}/sessions?country_name=${country}&year=${year}`);
         createSessionList(data);
+
     } catch (error) {
-        if (error.name === "AbortError") {
-            console.log("Request was aborted.");
-        } else if (error instanceof TypeError && error.message === "Failed to fetch") {
-            alert("Failed to reach server.");
-        } else {
-            alert(`❗ Unexpected error: ${error.message}`);
-        }
         console.log(error);
         return null;
     }
@@ -220,32 +211,14 @@ async function fetchSessions(country) {;
 
 async function showDriverSearch(sessionKey) {
     try {
-        let drivers = await fetch(`${apiBaseURL}/drivers?session_key=${sessionKey}`);
-        if(!drivers.ok){
-            if (!drivers.status === 500) {
-                alert("🚨 Server Error (500). Please try again later.");
-            } else if (drivers.status === 429) {
-                alert("⚠️ Too many requests (429). Please wait and try again.");
-            } else {
-                alert(`❌ Error ${drivers.status}: ${drivers.statusText}`);
-            }
-            return null;
-        }
-        let data = await drivers.json();
-        
-        if (!sessionKey) {
+         if (!sessionKey) {
             alert('Please select l_name session.');
             return;
         }
+        let data = await apiRequest(`${apiBaseURL}/drivers?session_key=${sessionKey}`);
         createDriverList(data);
+
     } catch (error) {
-        if (error.name === "AbortError") {
-            console.log("Request was aborted.");
-        } else if (error instanceof TypeError && error.message === "Failed to fetch") {
-            alert("Failed to reach server.");
-        } else {
-            alert(`❗ Unexpected error: ${error.message}`);
-        }
         console.log(error);
         return null;
     }
@@ -257,31 +230,11 @@ async function gatherdata(driver_number, name, team, team_color){
         const stint = [];
         const stinttyre = [];
         const sessionKey = document.querySelector('#session-list li.choose').value;
-        let response = await fetch(`${apiBaseURL}/laps?session_key=${sessionKey}&driver_number=${driver_number}`, { signal: controller.signal });
-        if (!response.ok) {
-            if (response.status === 500) {
-                alert("🚨 Server Error (500). Please try again later.");
-            } else if (response.status === 429) {
-                alert("⚠️ Too many requests (429). Please wait and try again.");
-            } else {
-                alert(`❌ Error ${response.status}: ${response.statusText}`);
-            }
-            return null;
-        }
-        const data1 = await response.json();
-        response = await fetch(`${apiBaseURL}/stints?session_key=${sessionKey}&driver_number=${driver_number}`, { signal: controller.signal });
-        if (!response.ok) {
-            if (response.status === 500) {
-                alert("🚨 Server Error (500). Please try again later.");
-            } else if (response.status === 429) {
-                alert("⚠️ Too many requests (429). Please wait and try again.");
-            } else {
-                alert(`❌ Error ${response.status}: ${response.statusText}`);
-            }
-            return null;
-        }
-        const data2 = await response.json();
-        // console.log(data1);
+        
+        const data1 = await apiRequest(`${apiBaseURL}/laps?session_key=${sessionKey}&driver_number=${driver_number}`, { signal: controller.signal });
+
+        const data2 = await apiRequest(`${apiBaseURL}/stints?session_key=${sessionKey}&driver_number=${driver_number}`, { signal: controller.signal });
+        
         if(!data1||!data2){
             throw new Error('Missing data for driver', driver_number);
         }
@@ -326,13 +279,6 @@ async function gatherdata(driver_number, name, team, team_color){
         });
         
     } catch (error) {
-        if (error.name === "AbortError") {
-            console.log("Request was aborted.");
-        } else if (error instanceof TypeError && error.message === "Failed to fetch") {
-            alert("Failed to reach server.");
-        } else {
-            alert(`❗ Unexpected error: ${error.message}`);
-        }
         console.log(error);
         return null;
     }

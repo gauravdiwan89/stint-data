@@ -884,7 +884,7 @@ function generateStintSelection() {
     const updatebutton = document.getElementById('update');
     updatebutton.style.display = 'block';
     let array = [...driverMap];
-    if(curYear==2025){
+    if(curYear==2026){
         array.sort((a, b)=>{
             return conList.indexOf(a[1].team_name) - conList.indexOf(b[1].team_name);
         });

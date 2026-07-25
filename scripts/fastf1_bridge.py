@@ -85,6 +85,15 @@ def parse_recorded_line(line: str) -> tuple[str, Any, str] | None:
     return str(category), payload, str(timestamp)
 
 
+def merge_live_dict(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
+    for key, value in update.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            merge_live_dict(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
 class LiveTimingStore:
     def __init__(self, directory: str, timeout: int):
         self.directory = Path(directory)
@@ -144,6 +153,7 @@ class LiveTimingStore:
     def snapshot(self) -> dict[str, Any]:
         drivers: dict[str, dict[str, Any]] = {}
         tyre_stints: dict[str, dict[str, dict[str, Any]]] = {}
+        timing_state: dict[str, dict[str, Any]] = {}
         laps: dict[str, dict[int, dict[str, Any]]] = {}
         latest_lap_count = None
 
@@ -163,13 +173,25 @@ class LiveTimingStore:
                     for racing_number, data in payload.items():
                         if not isinstance(data, dict):
                             continue
+                        previous = drivers.setdefault(
+                            str(racing_number),
+                            {
+                                "driver_number": str(racing_number),
+                                "broadcast_name": str(racing_number),
+                                "team_name": "",
+                                "team_colour": "697386",
+                                "tla": str(racing_number),
+                                "full_name": "",
+                            },
+                        )
+                        merged = merge_live_dict(previous, data.copy())
                         drivers[str(racing_number)] = {
                             "driver_number": str(racing_number),
-                            "broadcast_name": clean_string(data.get("BroadcastName"), str(racing_number)),
-                            "team_name": clean_string(data.get("TeamName"), ""),
-                            "team_colour": clean_string(data.get("TeamColour"), "697386").lstrip("#"),
-                            "tla": clean_string(data.get("Tla"), str(racing_number)),
-                            "full_name": clean_string(data.get("FullName"), clean_string(data.get("BroadcastName"), "")),
+                            "broadcast_name": clean_string(merged.get("BroadcastName"), previous.get("broadcast_name", str(racing_number))),
+                            "team_name": clean_string(merged.get("TeamName"), previous.get("team_name", "")),
+                            "team_colour": clean_string(merged.get("TeamColour"), previous.get("team_colour", "697386")).lstrip("#"),
+                            "tla": clean_string(merged.get("Tla"), previous.get("tla", str(racing_number))),
+                            "full_name": clean_string(merged.get("FullName"), previous.get("full_name", clean_string(merged.get("BroadcastName"), ""))),
                         }
 
                 elif category == "TimingAppData":
@@ -185,9 +207,10 @@ class LiveTimingStore:
                         for stint_number, stint in stint_items:
                             if not isinstance(stint, dict):
                                 continue
-                            tyre_stints[str(racing_number)][str(stint_number)] = stint
-                            lap_number = stint.get("LapNumber")
-                            lap_seconds = parse_lap_time(stint.get("LapTime"))
+                            existing = tyre_stints[str(racing_number)].setdefault(str(stint_number), {})
+                            merged_stint = merge_live_dict(existing, stint.copy())
+                            lap_number = merged_stint.get("LapNumber")
+                            lap_seconds = parse_lap_time(merged_stint.get("LapTime"))
                             if lap_number is not None and lap_seconds is not None:
                                 number = int(lap_number)
                                 laps.setdefault(str(racing_number), {})[number] = {
@@ -200,8 +223,9 @@ class LiveTimingStore:
                     for racing_number, line_data in payload.get("Lines", {}).items():
                         if not isinstance(line_data, dict):
                             continue
-                        lap_number = line_data.get("NumberOfLaps")
-                        lap_time = line_data.get("LastLapTime", {})
+                        merged_line = merge_live_dict(timing_state.setdefault(str(racing_number), {}), line_data.copy())
+                        lap_number = merged_line.get("NumberOfLaps")
+                        lap_time = merged_line.get("LastLapTime", {})
                         if isinstance(lap_time, dict):
                             lap_time = lap_time.get("Value")
                         lap_seconds = parse_lap_time(lap_time)
@@ -238,6 +262,18 @@ class LiveTimingStore:
                         "lap_end": lap_end,
                     }
                 )
+            if driver_laps:
+                latest_driver_lap = max(driver_laps)
+                if normalized_stints and normalized_stints[-1]["lap_end"] < latest_driver_lap:
+                    normalized_stints[-1]["lap_end"] = latest_driver_lap
+                elif not normalized_stints:
+                    normalized_stints.append(
+                        {
+                            "compound": "UNKNOWN",
+                            "lap_start": 1,
+                            "lap_end": latest_driver_lap,
+                        }
+                    )
 
             for lap in driver_laps.values():
                 compound = ""

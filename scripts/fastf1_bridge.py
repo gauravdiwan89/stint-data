@@ -639,7 +639,7 @@ def make_app(
             return jsonify({"message": f"No lap {lap_number} found for {driver_number}."}), 404
 
         lap = matches.iloc[0]
-        telemetry_rows = lap.get_car_data().add_distance()
+        telemetry_rows = lap.get_telemetry().add_distance()
         if telemetry_rows.empty:
             return jsonify({"message": f"No telemetry data found for {driver_number} lap {lap_number}."}), 404
 
@@ -647,9 +647,15 @@ def make_app(
         for _, row in telemetry_rows.iterrows():
             distance = row.get("Distance")
             speed = row.get("Speed")
+            x_position = row.get("X")
+            y_position = row.get("Y")
             if pd.isna(distance) or pd.isna(speed):
                 continue
-            points.append({"distance": round(float(distance), 3), "speed": float(speed)})
+            point = {"distance": round(float(distance), 3), "speed": float(speed)}
+            if x_position is not None and y_position is not None and not pd.isna(x_position) and not pd.isna(y_position):
+                point["x"] = float(x_position)
+                point["y"] = float(y_position)
+            points.append(point)
 
         return jsonify(
             {

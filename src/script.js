@@ -26,6 +26,7 @@ const telemetryFastestButton = document.getElementById('telemetry-fastest');
 const telemetryDeselectButton = document.getElementById('telemetry-deselect');
 const telemetryStatus = document.getElementById('telemetry-status');
 const telemetryPlot = document.getElementById('telemetryPlot');
+const telemetryMap = document.getElementById('telemetryMap');
 const loadingScreen = document.getElementById('loading-screen');
 const liveStatus = document.getElementById('live-status');
 
@@ -70,6 +71,15 @@ function setTelemetryStatus(message, active = false) {
 
 function telemetryKey(driverNumber, lapNumber) {
     return `${driverNumber}|${lapNumber}`;
+}
+
+function speedColor(speed, minSpeed, maxSpeed) {
+    if (!Number.isFinite(speed) || !Number.isFinite(minSpeed) || !Number.isFinite(maxSpeed) || maxSpeed <= minSpeed) {
+        return 'rgb(225, 6, 0)';
+    }
+    const ratio = Math.max(0, Math.min(1, (speed - minSpeed) / (maxSpeed - minSpeed)));
+    const hue = 240 - ratio * 240;
+    return `hsl(${hue}, 95%, 55%)`;
 }
 
 // Interactions
@@ -1251,6 +1261,7 @@ async function plotTelemetryShootout() {
 
     try {
         const traces = [];
+        const loadedTelemetry = [];
         let speedMin = Infinity;
         let speedMax = -Infinity;
         for (const checkbox of checked) {
@@ -1265,6 +1276,12 @@ async function plotTelemetryShootout() {
             data.points.forEach(point => {
                 speedMin = Math.min(speedMin, point.speed);
                 speedMax = Math.max(speedMax, point.speed);
+            });
+            loadedTelemetry.push({
+                driver: checkbox.dataset.driver,
+                lapNumber: data.lap_number,
+                teamColor: checkbox.dataset.team_color,
+                points: data.points
             });
 
             traces.push({
@@ -1283,6 +1300,7 @@ async function plotTelemetryShootout() {
         if (!traces.length) {
             setTelemetryStatus('No telemetry traces available for the selected laps.', true);
             Plotly.purge(telemetryPlot);
+            if (telemetryMap) Plotly.purge(telemetryMap);
             return;
         }
 
@@ -1332,10 +1350,68 @@ async function plotTelemetryShootout() {
         };
 
         Plotly.newPlot(telemetryPlot, traces, layout, { responsive: true });
+        plotTelemetryTrackMap(loadedTelemetry, speedMin, speedMax);
         setTelemetryStatus(`${traces.length} telemetry trace${traces.length === 1 ? '' : 's'} plotted${corners.length ? ` with ${corners.length} corner markers` : ''}.`, true);
     } finally {
         telemetryButton.disabled = false;
     }
+}
+
+function plotTelemetryTrackMap(laps, speedMin, speedMax) {
+    if (!telemetryMap) return;
+
+    const mapTraces = [];
+    laps.forEach(lap => {
+        const points = lap.points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+        if (points.length < 2) return;
+
+        for (let i = 1; i < points.length; i++) {
+            const speed = (points[i - 1].speed + points[i].speed) / 2;
+            mapTraces.push({
+                x: [points[i - 1].x, points[i].x],
+                y: [points[i - 1].y, points[i].y],
+                type: 'scatter',
+                mode: 'lines',
+                hoverinfo: 'text',
+                text: `${lap.driver} L${lap.lapNumber}<br>${speed.toFixed(0)} km/h`,
+                line: {
+                    color: speedColor(speed, speedMin, speedMax),
+                    width: 4
+                },
+                showlegend: false
+            });
+        }
+
+        mapTraces.push({
+            x: [points[0].x],
+            y: [points[0].y],
+            type: 'scatter',
+            mode: 'markers',
+            name: `${lap.driver} L${lap.lapNumber}`,
+            marker: {
+                color: `#${lap.teamColor}`,
+                size: 8,
+                symbol: 'circle'
+            }
+        });
+    });
+
+    if (!mapTraces.length) {
+        Plotly.purge(telemetryMap);
+        return;
+    }
+
+    const layout = {
+        title: { text: 'Lap Shootout Speed On Track', font: { color: 'white' } },
+        xaxis: { visible: false, scaleanchor: 'y', scaleratio: 1 },
+        yaxis: { visible: false },
+        paper_bgcolor: '#15151e',
+        plot_bgcolor: '#15151e',
+        legend: { font: { color: 'white' }, orientation: 'h' },
+        margin: { t: 48, r: 20, b: 24, l: 20 }
+    };
+
+    Plotly.newPlot(telemetryMap, mapTraces, layout, { responsive: true, displayModeBar: true });
 }
 
 function deselectTelemetryShootout() {
@@ -1344,6 +1420,8 @@ function deselectTelemetryShootout() {
         checkbox.checked = false;
         telemetrySelectionState.set(telemetryKey(checkbox.dataset.driver_number, checkbox.dataset.lap_number), false);
     });
+    if (telemetryPlot) Plotly.purge(telemetryPlot);
+    if (telemetryMap) Plotly.purge(telemetryMap);
     setTelemetryStatus('Shootout lap selection cleared.', true);
 }
 

@@ -444,6 +444,12 @@ th, td {
     min-height: 420px;
 }
 
+#telemetryMap {
+    width: 100%;
+    min-height: 560px;
+    margin-top: 12px;
+}
+
 #median{
     font-family: 'f1regular';
     display: flex;

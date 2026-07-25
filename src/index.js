@@ -202,6 +202,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const telemetryPlot = document.createElement("div");
     telemetryPlot.id = "telemetryPlot";
 
+    const telemetryMap = document.createElement("div");
+    telemetryMap.id = "telemetryMap";
+
     telemetryControls.appendChild(telemetryOptions);
     telemetryControls.appendChild(telemetryButton);
     telemetryControls.appendChild(telemetryFastestButton);
@@ -210,6 +213,7 @@ document.addEventListener("DOMContentLoaded", function () {
     telemetryDiv.appendChild(telemetryControls);
     telemetryDiv.appendChild(telemetryStatus);
     telemetryDiv.appendChild(telemetryPlot);
+    telemetryDiv.appendChild(telemetryMap);
     mainContainer.appendChild(telemetryDiv);
 
     

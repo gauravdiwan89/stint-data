@@ -421,6 +421,28 @@ async function gatherdata(driver_number, name, team, team_color){
 
         const lapsByNumber = new Map(data1.map(lap => [lap.lap_number, lap]));
 
+        if (liveMode) {
+            const liveLaps = data1
+                .filter(lap => lap && lap.lap_duration !== null && Number.isFinite(Number(lap.lap_duration)))
+                .sort((a, b) => Number(a.lap_number) - Number(b.lap_number));
+            let currentCompound = null;
+            let currentStint = null;
+
+            liveLaps.forEach(lap => {
+                const compound = lap.compound || 'UNKNOWN';
+                const lapNumber = Number(lap.lap_number);
+                const previousTyreLife = currentStint?.[currentStint.length - 1]?.[2];
+                const tyreLife = Number(lap.tyre_life) || null;
+                if (compound !== currentCompound || (previousTyreLife && tyreLife && tyreLife <= previousTyreLife)) {
+                    currentCompound = compound;
+                    currentStint = [];
+                    stint.push(currentStint);
+                    stinttyre.push(compound);
+                }
+                currentStint.push([Number(lap.lap_duration).toFixed(3), lapNumber, tyreLife]);
+            });
+        }
+        else {
         for (let i in data2) {
             stint.push([]);
         }
@@ -443,6 +465,7 @@ async function gatherdata(driver_number, name, team, team_color){
                     stint[i].push([x.lap_duration.toFixed(3), x.lap_number]);
                 }         
             }
+        }
         }
         
         const sessionType = document.querySelector(".session-container .choose")?.textContent || "";

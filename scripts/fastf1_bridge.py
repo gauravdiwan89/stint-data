@@ -348,7 +348,7 @@ def make_app(
     fastf1.set_log_level("WARNING")
 
     app = Flask(__name__)
-    CORS(app)
+    CORS(app, allow_private_network=True)
     live_store = LiveTimingStore(os.getenv("FASTF1_LIVE_DIR", "live-recordings"), int(os.getenv("FASTF1_LIVE_TIMEOUT", "120")))
 
     @lru_cache(maxsize=16)

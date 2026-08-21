@@ -430,6 +430,9 @@ async function gatherdata(driver_number, name, team, team_color){
             stinttyre.push(data2[i].compound);
             for (let j = start; j <= end; j++) {
                 let x = lapsByNumber.get(j);
+                if(liveMode && (!x || x.lap_duration === null || !Number.isFinite(Number(x.lap_duration)))){
+                    continue;
+                }
                 if(x==undefined){
                     stint[i].push(['NaN', 'NaN']);
                 }

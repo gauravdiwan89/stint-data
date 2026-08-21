@@ -247,21 +247,40 @@ class LiveTimingStore:
             stints = tyre_stints.get(racing_number, {})
             sorted_stints = sorted(stints.items(), key=lambda item: int(item[0]) if str(item[0]).isdigit() else 0)
             normalized_stints = []
-            next_lap_start = 1
+            sequential_lap_start = 1
             for _stint_number, stint in sorted_stints:
                 total_laps = int(stint.get("TotalLaps") or 0)
                 if total_laps <= 0:
                     continue
-                lap_start = next_lap_start
-                lap_end = lap_start + total_laps - 1
-                next_lap_start = lap_end + 1
-                normalized_stints.append(
-                    {
-                        "compound": clean_string(stint.get("Compound"), "UNKNOWN").upper(),
-                        "lap_start": lap_start,
-                        "lap_end": lap_end,
-                    }
-                )
+                compound = clean_string(stint.get("Compound"), "UNKNOWN").upper()
+                start_laps = int(stint.get("StartLaps") or 0)
+                stint_laps = total_laps - start_laps if total_laps > start_laps else total_laps
+                lap_number = stint.get("LapNumber")
+                if lap_number is not None and stint_laps > 0:
+                    lap_end = int(lap_number)
+                    lap_start = max(1, lap_end - stint_laps + 1)
+                else:
+                    lap_start = sequential_lap_start
+                    lap_end = lap_start + total_laps - 1
+                if normalized_stints:
+                    previous = normalized_stints[-1]
+                    if compound == previous["compound"] and str(stint.get("TyresNotChanged", "0")) == "1":
+                        previous["lap_end"] = max(previous["lap_end"], lap_end)
+                        sequential_lap_start = previous["lap_end"] + 1
+                        continue
+                    if lap_start <= previous["lap_end"]:
+                        lap_start = previous["lap_end"] + 1
+                    elif lap_start > previous["lap_end"] + 1:
+                        previous["lap_end"] = lap_start - 1
+                if lap_start <= lap_end:
+                    normalized_stints.append(
+                        {
+                            "compound": compound,
+                            "lap_start": lap_start,
+                            "lap_end": lap_end,
+                        }
+                    )
+                    sequential_lap_start = lap_end + 1
             if driver_laps:
                 latest_driver_lap = max(driver_laps)
                 if normalized_stints and normalized_stints[-1]["lap_end"] < latest_driver_lap:
